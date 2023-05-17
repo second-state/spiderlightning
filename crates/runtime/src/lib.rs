@@ -10,11 +10,16 @@ use anyhow::Result;
 use async_trait::async_trait;
 use ctx::SlightCtxBuilder;
 use resource::{get_host_state, HttpData, HttpServerExportData};
-use slight_common::{CapabilityBuilder, WasmtimeBuildable, WasmtimeLinkable};
+use slight_common::CapabilityBuilder;
 use tracing::info;
 use wasi_cap_std_sync::{ambient_authority, Dir, WasiCtxBuilder};
 use wasi_common::pipe::{ReadPipe, WritePipe};
 use wasi_common::WasiCtx;
+
+use slight_common::{WasmedgeBuildable, WasmedgeLinkable};
+#[cfg(feature = "wasmtime")]
+use slight_common::{WasmtimeBuildable, WasmtimeLinkable};
+#[cfg(feature = "wasmtime")]
 use wasmtime::{Config, Engine, Instance, Linker, Module, Store};
 
 pub use ctx::SlightCtx;
@@ -39,6 +44,7 @@ pub struct RuntimeContext {
 }
 
 impl slight_common::Ctx for RuntimeContext {
+    #[cfg(feature = "wasmtime")]
     fn get_http_handler_mut(&mut self) -> &mut HttpData {
         &mut self.http_state
     }
@@ -50,6 +56,7 @@ impl slight_common::Ctx for RuntimeContext {
         get_host_state(self, resource_key)
     }
 
+    #[cfg(feature = "wasmtime")]
     fn get_http_server_mut(&mut self) -> &mut slight_http_api::HttpServerExportData {
         &mut self.http_server_state
     }
@@ -63,10 +70,63 @@ pub struct IORedirects {
     pub stdin_path: Option<PathBuf>,
 }
 
+use wasmedge_sdk::{
+    config::{CommonConfigOptions, ConfigBuilder, HostRegistrationConfigOptions},
+    Vm, VmBuilder,
+};
+
+#[derive(Clone)]
+pub struct Builder {
+    vm: Box<Vm>,
+}
+
+impl Builder {
+    /// Create a new runtime builder.
+    pub fn from_module(module: impl AsRef<Path>) -> Result<Self> {
+        let cfg = ConfigBuilder::new(CommonConfigOptions::default())
+            .with_host_registration_config(HostRegistrationConfigOptions::default().wasi(true))
+            .build()?;
+
+        let vm = VmBuilder::new()
+            .with_config(cfg)
+            .build()?
+            .register_import_module(witc_abi::runtime::component_model_wit_object()?)?
+            .register_module_from_file("user", module)?;
+
+        Ok(Self { vm: Box::new(vm) })
+    }
+
+    /// Set the I/O redirects for the module
+    pub fn set_io(mut self, io_redirects: IORedirects) -> Self {
+        self
+    }
+
+    /// Link wasi to the wasmtime::Linker
+    pub fn link_wasi(&mut self) -> Result<&mut Self> {
+        Ok(self)
+    }
+
+    /// Link a host capability to the wasmtime::Linker
+    pub fn link_capability<T: WasmedgeLinkable>(&mut self) -> Result<&mut Self> {
+        tracing::log::info!("Adding capability: {}", std::any::type_name::<T>());
+        let v: Vm = *self.vm.to_owned();
+        self.vm = T::add_to_linker(v)?.into();
+        Ok(self)
+    }
+
+    pub fn add_to_builder<T>(&mut self, name: String, resource: T) -> &mut Self
+    where
+        T: CapabilityBuilder + Send + Sync + Clone + 'static,
+    {
+        self
+    }
+}
+
 /// A wasmtime-based runtime builder.
 ///
 /// It knows how to build a `Store` and `Instance` for a wasm module, given
 /// a `RuntimeContext`, and a `SlightCtxBuilder`.
+#[cfg(feature = "wasmtime")]
 #[derive(Clone)]
 pub struct Builder {
     linker: Linker<Ctx>,
@@ -76,6 +136,7 @@ pub struct Builder {
     io_redirects: IORedirects,
 }
 
+#[cfg(feature = "wasmtime")]
 impl Builder {
     /// Create a new runtime builder.
     pub fn from_module(module: impl AsRef<Path>) -> Result<Self> {
@@ -143,6 +204,12 @@ fn maybe_open_stdio(pipe_path: &Path) -> Option<File> {
 }
 
 #[async_trait]
+impl WasmedgeBuildable for Builder {
+    type Ctx = Ctx;
+}
+
+#[cfg(feature = "wasmtime")]
+#[async_trait]
 impl WasmtimeBuildable for Builder {
     type Ctx = Ctx;
 
@@ -202,7 +269,13 @@ fn add_io_redirects_to_wasi_context(
     Ok(ctx)
 }
 
+#[cfg(feature = "wasmedge")]
+pub fn default_config() -> Result() {
+    Ok()
+}
+
 // TODO (Joe): expose the wasmtime config as a capability?
+#[cfg(feature = "wasmtime")]
 pub fn default_config() -> Result<Config> {
     let mut config = Config::new();
     config.wasm_backtrace_details(wasmtime::WasmBacktraceDetails::Enable);

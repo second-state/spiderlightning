@@ -7,7 +7,10 @@ use anyhow::{bail, Result};
 use as_any::Downcast;
 #[cfg(feature = "blob-store")]
 use slight_blob_store::{BlobStore, BLOB_STORE_SCHEME_NAME};
-use slight_common::{BasicState, Capability, Ctx as _, WasmtimeBuildable};
+use slight_common::WasmedgeBuildable;
+#[cfg(feature = "wasmtime")]
+use slight_common::WasmtimeBuildable;
+use slight_common::{BasicState, Capability, Ctx as _};
 #[cfg(feature = "distributed-locking")]
 use slight_distributed_locking::DistributedLocking;
 use slight_file::{
@@ -71,29 +74,29 @@ pub async fn handle_run(args: RunArgs) -> Result<()> {
 
     // looking for the http capability.
     if cfg!(feature = "http-server") && http_enabled {
-        log::debug!("Http capability enabled");
-        update_http_states(
-            toml.as_ref(),
-            args.slightfile,
-            &args.module,
-            &mut store,
-            args.io_redirects,
-            args.link_all_capabilities,
-        )
-        .await?;
+        // log::debug!("Http capability enabled");
+        // update_http_states(
+        //     toml.as_ref(),
+        //     args.slightfile,
+        //     &args.module,
+        //     &mut store,
+        //     args.io_redirects,
+        //     args.link_all_capabilities,
+        // )
+        // .await?;
 
-        // invoke on_server_init
-        let http_server =
-            HttpServerInit::new(&mut store, &instance, |ctx| ctx.get_http_server_mut())?;
+        // // invoke on_server_init
+        // let http_server =
+        //     HttpServerInit::new(&mut store, &instance, |ctx| ctx.get_http_server_mut())?;
 
-        let res = http_server.on_server_init(&mut store).await?;
-        match res {
-            Ok(_) => {}
-            Err(e) => bail!(e),
-        }
+        // let res = http_server.on_server_init(&mut store).await?;
+        // match res {
+        //     Ok(_) => {}
+        //     Err(e) => bail!(e),
+        // }
 
-        log::info!("waiting for http to finish...");
-        close_http_server(store).await;
+        // log::info!("waiting for http to finish...");
+        // close_http_server(store).await;
     } else {
         instance
             .get_typed_func::<(), _>(&mut store, "_start")?
@@ -183,35 +186,35 @@ async fn shutdown_signal() {
 }
 
 fn link_all_caps(builder: &mut Builder, linked_capabilities: &mut HashSet<String>) -> Result<()> {
-    builder.link_capability::<BlobStore>()?;
-    linked_capabilities.insert(BLOB_STORE_SCHEME_NAME.to_string());
+    // builder.link_capability::<BlobStore>()?;
+    // linked_capabilities.insert(BLOB_STORE_SCHEME_NAME.to_string());
 
     builder.link_capability::<Keyvalue>()?;
     linked_capabilities.insert("keyvalue".to_string());
 
-    builder.link_capability::<DistributedLocking>()?;
-    linked_capabilities.insert("distributed_locking".to_string());
+    // builder.link_capability::<DistributedLocking>()?;
+    // linked_capabilities.insert("distributed_locking".to_string());
 
-    builder.link_capability::<Messaging>()?;
-    linked_capabilities.insert("messaging".to_string());
+    // builder.link_capability::<Messaging>()?;
+    // linked_capabilities.insert("messaging".to_string());
 
-    builder.link_capability::<Configs>()?;
-    linked_capabilities.insert("configs".to_string());
+    // builder.link_capability::<Configs>()?;
+    // linked_capabilities.insert("configs".to_string());
 
-    builder.link_capability::<Sql>()?;
-    linked_capabilities.insert("sql".to_string());
+    // builder.link_capability::<Sql>()?;
+    // linked_capabilities.insert("sql".to_string());
 
-    let http = slight_http_server::HttpServer::<Builder>::default();
-    builder
-        .link_capability::<HttpServer<Builder>>()?
-        .add_to_builder("http".to_string(), http);
-    linked_capabilities.insert("http".to_string());
+    // let http = slight_http_server::HttpServer::<Builder>::default();
+    // builder
+    //     .link_capability::<HttpServer<Builder>>()?
+    //     .add_to_builder("http".to_string(), http);
+    // linked_capabilities.insert("http".to_string());
 
-    let http_client = HttpClient::new();
-    builder
-        .link_capability::<HttpClient>()?
-        .add_to_builder("http-client".to_string(), http_client);
-    linked_capabilities.insert("http-client".to_string());
+    // let http_client = HttpClient::new();
+    // builder
+    //     .link_capability::<HttpClient>()?
+    //     .add_to_builder("http-client".to_string(), http_client);
+    // linked_capabilities.insert("http-client".to_string());
 
     Ok(())
 }

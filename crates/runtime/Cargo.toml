@@ -21,6 +21,8 @@ slight-http-api = { workspace = true }
 tracing = { workspace = true }
 slight-common = { workspace = true }
 async-trait = { workspace = true }
+wasmedge-sdk = { workspace = true }
+witc-abi = { workspace = true }
 
 [dev-dependencies]
 slight-keyvalue = { workspace = true }

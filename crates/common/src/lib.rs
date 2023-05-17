@@ -1,5 +1,7 @@
 mod context;
 mod state;
+#[cfg(feature = "wasmedge")]
+mod wasmedge_runtime;
 #[cfg(feature = "wasmtime")]
 mod wasmtime_runtime;
 
@@ -9,6 +11,8 @@ use as_any::AsAny;
 pub use context::Ctx;
 pub use state::BasicState;
 
+#[cfg(feature = "wasmedge")]
+pub use wasmedge_runtime::{Builder, WasmedgeBuildable, WasmedgeLinkable};
 #[cfg(feature = "wasmtime")]
 pub use wasmtime_runtime::{Builder, Linker, WasmtimeBuildable, WasmtimeLinkable};
 
@@ -46,6 +50,7 @@ macro_rules! impl_resource {
             }
         }
 
+        #[cfg(feature = "wasmtime")]
         impl slight_common::WasmtimeLinkable for $resource {
             fn add_to_linker<Ctx: slight_common::Ctx + Send + Sync + 'static>(
                 linker: &mut slight_common::Linker<Ctx>,
@@ -68,6 +73,7 @@ macro_rules! impl_resource {
             }
         }
 
+        #[cfg(feature = "wasmtime")]
         impl slight_common::WasmtimeLinkable for $resource {
             fn add_to_linker<Ctx: slight_common::Ctx + Send + Sync + 'static>(
                 linker: &mut slight_common::Linker<Ctx>,
@@ -82,14 +88,17 @@ macro_rules! impl_resource {
     ($resource:ty, $resource_table:ty, $state:ty, $lt:tt, $add_to_linker:path, $scheme_name:expr) => {
         // This macro is used to the implement a new Capability. It requires
         // a resource table and is generic to builder type.
+        #[cfg(feature = "wasmtime")]
         impl<$lt> slight_common::Capability for $resource where
             $lt: slight_common::WasmtimeBuildable + 'static
         {
         }
+        #[cfg(feature = "wasmtime")]
         impl<$lt> slight_common::CapabilityIndexTable for $resource_table where
             $lt: slight_common::WasmtimeBuildable + Send + Sync + 'static
         {
         }
+        #[cfg(feature = "wasmtime")]
         impl<$lt> slight_common::CapabilityBuilder for $resource
         where
             $lt: slight_common::WasmtimeBuildable + Send + Sync + 'static,
@@ -99,6 +108,7 @@ macro_rules! impl_resource {
             }
         }
 
+        #[cfg(feature = "wasmtime")]
         impl<$lt> slight_common::WasmtimeLinkable for $resource
         where
             $lt: slight_common::WasmtimeBuildable + Send + Sync + 'static,

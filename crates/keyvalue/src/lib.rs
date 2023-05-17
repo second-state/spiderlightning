@@ -5,19 +5,27 @@ use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use implementors::*;
+use implementors::KeyvalueImplementor;
+use serde::{Deserialize, Serialize};
 
 /// It is mandatory to `use <interface>::*` due to `impl_resource!`.
 /// That is because `impl_resource!` accesses the `crate`'s
 /// `add_to_linker`, and not the `<interface>::add_to_linker` directly.
-use keyvalue::*;
+// #[cfg(feature = "wasmtime")]
+// use keyvalue::*;
 use slight_common::{impl_resource, BasicState};
 use slight_file::capability_store::CapabilityStore;
-use slight_file::resource::KeyvalueResource::*;
+// use slight_file::resource::KeyvalueResource::*;
 use slight_file::Resource;
-wit_bindgen_wasmtime::export!({paths: ["../../wit/keyvalue.wit"], async: *});
-wit_error_rs::impl_error!(keyvalue::KeyvalueError);
-wit_error_rs::impl_from!(anyhow::Error, keyvalue::KeyvalueError::UnexpectedError);
+// #[cfg(feature = "wasmtime")]
+// wit_bindgen_wasmtime::export!({paths: ["../../wit/keyvalue.wit"], async: *});
+// #[cfg(feature = "wasmtime")]
+// wit_error_rs::impl_error!(keyvalue::KeyvalueError);
+// #[cfg(feature = "wasmtime")]
+// wit_error_rs::impl_from!(anyhow::Error, keyvalue::KeyvalueError::UnexpectedError);
+
+// #[cfg(feature = "wasmedge")]
+invoke_witc::wit_runtime!(export(wasmedge_keyvalue = "wit/keyvalue.wit"));
 
 /// The `Keyvalue` structure is what will implement the `keyvalue::Keyvalue` trait
 /// coming from the generated code of off `keyvalue.wit`.
@@ -29,12 +37,14 @@ wit_error_rs::impl_from!(anyhow::Error, keyvalue::KeyvalueError::UnexpectedError
 ///     - the `slight_state` (of type `BasicState`) that contains common
 ///     things received from the slight binary (i.e., the `config_type`
 ///     and the `config_toml_file_path`).
+#[cfg(feature = "wasmtime")]
 #[derive(Clone, Default)]
 pub struct Keyvalue {
     implementor: Resource,
     capability_store: CapabilityStore<BasicState>,
 }
 
+#[cfg(feature = "wasmtime")]
 impl Keyvalue {
     pub fn new(implementor: Resource, keyvalue_store: CapabilityStore<BasicState>) -> Self {
         Self {
@@ -59,11 +69,13 @@ impl Keyvalue {
 ///
 /// It must be public because the implementation of `keyvalye::Keyvalue` cannot leak
 /// a private type.
+#[cfg(feature = "wasmtime")]
 #[derive(Clone, Debug)]
 pub struct KeyvalueInner {
     keyvalue_implementor: Arc<dyn KeyvalueImplementor + Send + Sync>,
 }
 
+#[cfg(feature = "wasmtime")]
 impl KeyvalueInner {
     async fn new(
         keyvalue_implementor: KeyvalueImplementors,
@@ -96,6 +108,7 @@ impl KeyvalueInner {
 /// This defines the available implementor implementations for the `Keyvalue` interface.
 ///
 /// As per its' usage in `KeyvalueInner`, it must `derive` `Debug`, and `Clone`.
+#[cfg(feature = "wasmtime")]
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum KeyvalueImplementors {
@@ -109,6 +122,7 @@ pub enum KeyvalueImplementors {
     Redis,
 }
 
+#[cfg(feature = "wasmtime")]
 impl From<Resource> for KeyvalueImplementors {
     fn from(s: Resource) -> Self {
         match s {
@@ -138,6 +152,7 @@ impl From<Resource> for KeyvalueImplementors {
 //
 // The `Capability` and `CapabilityIndexTable` traits are empty traits that allow
 // grouping of resources through `dyn Capability`, and `dyn CapabilityIndexTable`.
+#[cfg(feature = "wasmtime")]
 impl_resource!(
     Keyvalue,
     keyvalue::KeyvalueTables<Keyvalue>,
@@ -146,6 +161,7 @@ impl_resource!(
 );
 
 /// This is the implementation for the generated `keyvalue::Keyvalue` trait from the `keyvalue.wit` file.
+#[cfg(feature = "wasmtime")]
 #[async_trait]
 impl keyvalue::Keyvalue for Keyvalue {
     type Keyvalue = KeyvalueInner;
@@ -205,5 +221,39 @@ impl keyvalue::Keyvalue for Keyvalue {
     ) -> Result<(), KeyvalueError> {
         self_.keyvalue_implementor.delete(key).await?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Keyvalue {
+    implementor: Resource,
+    capability_store: CapabilityStore<BasicState>,
+}
+
+fn keyvalue_open(name: String) -> Result<keyvalue, keyvalue_error> {
+    println!("new store `{}`", name);
+    Ok(1)
+}
+fn keyvalue_set(handle: keyvalue, key: String, value: Vec<u8>) -> Result<(), keyvalue_error> {
+    println!("insert `{}`", key);
+    Ok(())
+}
+fn keyvalue_get(handle: keyvalue, key: String) -> Result<Vec<u8>, keyvalue_error> {
+    println!("get `{}`", key);
+    Ok(vec![1])
+}
+fn keyvalue_keys(handle: keyvalue) -> Result<Vec<String>, keyvalue_error> {
+    println!("get keys");
+    Ok(vec![String::from("key1")])
+}
+fn keyvalue_delete(handle: keyvalue, key: String) -> Result<(), keyvalue_error> {
+    println!("remove `{}`", key);
+    Ok(())
+}
+
+impl slight_common::WasmedgeLinkable for Keyvalue {
+    fn add_to_linker(vm: wasmedge_sdk::Vm) -> anyhow::Result<wasmedge_sdk::Vm> {
+        let r = vm.register_import_module(wasmedge_keyvalue::wit_import_object()?)?;
+        Ok(r)
     }
 }

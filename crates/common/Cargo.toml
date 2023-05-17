@@ -14,11 +14,13 @@ doctest = false
 
 [dependencies]
 slight-file = { workspace = true }
-slight-http-api = { workspace = true }
+slight-http-api = { workspace = true, optional = true }
 as-any = { workspace = true }
+wasmedge-sdk = { workspace = true, optional = true }
 wasmtime = { workspace = true, optional = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 
 [features]
-default = ["wasmtime"]
+default = ["wasmedge"]
+wasmedge = ["wasmedge-sdk"]
