@@ -70,7 +70,7 @@ pub async fn handle_run(args: RunArgs) -> Result<()> {
         tracing::info!("slight io redirects were specified");
         host_builder = host_builder.set_io(io_redirects);
     }
-    let (mut store, instance) = host_builder.build().await;
+    let (mut vm, instance) = host_builder.build().await;
 
     // looking for the http capability.
     if cfg!(feature = "http-server") && http_enabled {
@@ -98,10 +98,8 @@ pub async fn handle_run(args: RunArgs) -> Result<()> {
         // log::info!("waiting for http to finish...");
         // close_http_server(store).await;
     } else {
-        instance
-            .get_typed_func::<(), _>(&mut store, "_start")?
-            .call_async(&mut store, ())
-            .await?;
+        vm.run_func(mod_name, func_name, args)
+        vm.run_func_async(instance, "_start", vec![]).await?;
     }
     Ok(())
 }

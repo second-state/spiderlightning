@@ -1,15 +1,11 @@
 use async_trait::async_trait;
 
-use wasmedge_sdk::VmBuilder;
-
-use crate::Ctx;
+use wasmedge_sdk::Vm;
 
 /// A trait for builder
 #[async_trait]
 pub trait WasmedgeBuildable: Clone {
-    type Ctx: Ctx + Send + Sync;
-
-    async fn build(self) -> VmBuilder;
+    async fn build(self) -> (Vm, String);
 }
 
 #[derive(Clone)]

@@ -205,7 +205,9 @@ fn maybe_open_stdio(pipe_path: &Path) -> Option<File> {
 
 #[async_trait]
 impl WasmedgeBuildable for Builder {
-    type Ctx = Ctx;
+    async fn build(self) -> (Vm, String) {
+        (*self.vm, "".to_string())
+    }
 }
 
 #[cfg(feature = "wasmtime")]
